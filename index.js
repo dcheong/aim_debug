@@ -1,6 +1,7 @@
 const canvas = document.getElementById("renderCanvas"); // Get the canvas element
 const engine = new BABYLON.Engine(canvas, true); // Generate the BABYLON 3D engine
 
+let scene;
 let havokInstance;
 HavokPhysics().then((havok) => {
   // Havok is now available
@@ -10,6 +11,10 @@ HavokPhysics().then((havok) => {
 const mouseSensitivity = 0.0003;
 const rotationXMin = -Math.PI / 2;
 const rotationXMax = Math.PI / 2;
+const nextSphereDistanceMin = 3;
+const nextSphereDistanceMax = 6;
+let sphere;
+let spherePhysics;
 
 var camera;
 var physicsEngine;
@@ -38,9 +43,28 @@ function shoot() {
   var end = start.add(direction.scale(1000));
   physicsEngine.raycastToRef(start, end, raycastResult);
   if (raycastResult.hasHit) {
-    console.log(raycastResult);
-    raycastResult.body.transformNode.dispose();
-    console.log("hit");
+    spherePhysics.dispose();
+    const nextSphereDistance =
+      nextSphereDistanceMin +
+      Math.random() * (nextSphereDistanceMax - nextSphereDistanceMin);
+    const position = sphere.position;
+    let degreeLimit = 360;
+    let baselineDegree = -180;
+    if (position.y < nextSphereDistance) {
+      const theta = Math.acos(-position.y / nextSphereDistance) - Math.PI / 2;
+      degreeLimit = theta * 2;
+      baselineDegree = -theta;
+    }
+    const degree = baselineDegree + Math.random() * degreeLimit;
+    position.y += nextSphereDistance * Math.cos(degree);
+    position.x += nextSphereDistance * Math.sin(degree);
+    sphere.setAbsolutePosition(position);
+    spherePhysics = new BABYLON.PhysicsAggregate(
+      sphere,
+      BABYLON.PhysicsShapeType.SPHERE,
+      { mass: 0, restitution: 0 },
+      scene
+    );
   }
 }
 
@@ -95,9 +119,9 @@ function createCrossHair() {
 }
 
 function addSphere(scene) {
-  const sphere = BABYLON.MeshBuilder.CreateSphere(
+  sphere = BABYLON.MeshBuilder.CreateSphere(
     "sphere",
-    { diameter: 1, segments: 32 },
+    { diameter: 0.5, segments: 32 },
     scene
   );
   const sphereMaterial = new BABYLON.StandardMaterial("Sphere", scene);
@@ -107,7 +131,7 @@ function addSphere(scene) {
   sphere.position.y = 1;
   sphere.position.z = 20;
 
-  var sphereAggregate = new BABYLON.PhysicsAggregate(
+  spherePhysics = new BABYLON.PhysicsAggregate(
     sphere,
     BABYLON.PhysicsShapeType.SPHERE,
     { mass: 1, restitution: 0.75 },
@@ -143,11 +167,6 @@ const createScene = async function () {
 
   createCrossHair();
 
-  // Debug layer
-  scene.debugLayer.show({
-    embedMode: true,
-  });
-
   addSphere(scene);
 
   // Register a render loop to repeatedly render the scene
@@ -157,7 +176,7 @@ const createScene = async function () {
 
   return scene;
 };
-const scene = createScene(); // Call the createScene function
+createScene().then((s) => (scene = s));
 
 // Watch for browser/canvas resize events
 window.addEventListener("resize", function () {
